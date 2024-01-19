@@ -1,0 +1,194 @@
+<!DOCTYPE HTML>
+<html>
+	<head>
+		<title>Multi-Agent Triager Bot</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+		<link rel="stylesheet" href="assets/css/page.css" />
+	</head>
+	<body class="single is-preload">
+
+		<!-- Wrapper -->
+		<div id="wrapper">
+
+			<!-- Header -->
+				<header id="header">
+					<h1><a href="about.html">East Side</a></h1>
+					<nav class="links">
+						<ul>
+							<li><a href="about.html">About Me</a></li>
+							<li><a href="projects.html">Projects</a></li>
+							<li><a href="Alan_Resume.pdf">Resume</a></li>
+						</ul>
+					</nav>
+					<nav class="main">
+						<ul>
+							<li class="menu">
+								<a class="fa-bars" href="#menu">Menu</a>
+							</li>
+						</ul>
+					</nav>
+				</header>
+
+			<!-- Menu -->
+				<section id="menu">
+
+					<!-- Links -->
+						<section>
+							<ul class="links">
+								<li>
+									<a href="about.html">
+										<h3>About Me</h3>
+									</a>
+								</li>
+								<li>
+									<a href="projects.html">
+										<h3>Projects</h3>
+									</a>
+								</li>
+								<li>
+									<a href="Alan_Resume.pdf">
+										<h3>Resume</h3>
+									</a>
+								</li>
+							</ul>
+						</section>
+
+				</section>
+
+				<!-- Main -->
+					<div id="main">
+
+						<!-- Post -->
+						<article class="post">
+							<header>
+								<div class="title">
+									<h2><a href="triagerbot.html">Multi-Agent Triager Bot</a></h2>
+									<p>Amazon Alexa (Summer '23)</p>
+								</div>
+							</header>
+							<h3>Background</h3>
+							<a class="image featured"><img src="images/triagerbackground.png" alt="" /></a>
+							<p>The entire E2E process starting from a spoken utterance towards any Alexa enabled device to a response at the end is composed of many services, each with their own specific function. 
+								Just to name a few, the orchestrator service, the Panda service, DR, etc. Each service has a number of application logs associated with them. 
+							</p>
+							<p>
+								Each application log recorded by Atocha corresponds to all of the server side requests and responses associated with that service. 
+								These logs and any metadata, information that uniquely identifies the logs and services, are stored in Atocha. 
+								
+								Whenever a bug affects a service or service(s), it will typically show up in the logs on Atocha.  </p>
+							
+							<h3>Problem</h3>
+							<p>Developers working on Alexa are losing productivity due to manually sifting through what could be hundreds of log lines in Atocha to find the root causes of a bug impacting the Alexa service. 
+								It can take a developer 45 minutes on average in order to fully investigate a bug and route it to the proper teams for resolution. 
+								10 bugs would account for a whole day of 1 SDE’s time. </p>
+							
+							<h3>Solution</h3>
+							<p>Triager Bot is an internal tool running on an AWS Lambda fronted by API Gateway that will automatically fetch application metadata and log data associated with any particular Alexa request from the Atocha API, 
+								parse the log data for important log lines using regex matching, 
+								and analyze the log lines across multiple services for common bugs that may be encountered in any E2E flow. 
+								This information will all be displayed in a nicely formatted output in the CLI. 
+								Developers can then use the output to inform the proper teams most knowledgeable about the bug for quick resolution.
+							</p>
+							<ul>
+								<li>This tool will be used by developers. This tool relies heavily on the Atocha API as a dependency.</li>
+								<li>This service is configurable; in a JSON file, developers can specify what services metadata/logs to fetch, which log lines they want to see in the output, 
+									and which bugs that the service will look for in the E2E flow. </li>
+								<li>The service has built-in extensibility; developers can onboard new bug types for the service to analyze for and new services to fetch and output. </li>
+							</ul>
+
+							<h3>Impact (So What?)</h3>
+							<p>
+								While there are existing tools that can help the developer more easily search for important information in log lines, 
+								the Triager Bot eliminates that manual search process and provides all the information the developer wants within seconds.
+							</p>
+							<p>
+								Triager Bot can reduce the length of a developer’s debug cycle for bugs impacting the Alexa service from 45 minutes/bug to 1 minute/bug, 
+								saving time and therefore cost. 
+							</p>
+
+							<h3>Low Level Design Overview</h3>
+							<a class="image featured"><img src="images/triagerlld.png" alt="" /></a>
+							<h4>Input</h4>
+							<ol>
+								<li>config.json file</li>
+								<p>
+									This is where the user can specify what services and their logs for the Triager Bot to fetch, and what regular expressions for the 
+									Triager Bot to search for in each service’s logs. 
+								</p>
+								<li>UtteranceID</li>
+								<p>
+									A unique ID generated for every utterance spoken to an Alexa-enabled device. 
+									This input is necessary for Triager Bot to identify the exact E2E flow associated any given request to an Alexa-enabled device.
+								</p>
+							</ol>
+
+							<h4>Dataflow</h4>
+							<ol>
+								<li>Send a POST request to /analyze endpoint containing the utteranceID</li>
+								<li>The endpoint will then construct a Lambda, and call the Lambda’s `handleRequest` function on the utteranceID</li>
+								<li>The inputs are passed into the MetadataFetcher, which will fetch all service metadata for services specified in the config file 
+									that are uniquely identified by the given utteranceID</li>
+									<ul>
+										<li>Calls Atocha API’s basicSearch on the utteranceID, which will return a JSON file of service metadata</li>
+										<li>Calls Atocha API’s advancedSearch to target special logs that cannot be fetched by utteranceID </li>
+									</ul>
+								<li>Calls Atocha API’s logFetch on each service’s metadata, which will return a JSON file containing the full logs</li>
+									<ul>
+										<li>Calls Atocha API’s basicSearch on the utteranceID, which will return a JSON file of service metadata</li>
+									</ul>
+								<li>The full logs are passed into LogParser, which will look for log lines that contain the specified regular expressions in the config file</li>
+								<li>Each service’s metadata from MetadataFetcher and the matched log lines will be output in a String in LogOutput</li>
+								<li>Along with LogOutput, BugDetector will analyze fetched applications logs and regex-matched log lines for bugs that may have occurred in the 
+									entire E2E flow and produce a String for each bug type that has been analyzed for</li>
+							</ol>
+							<p>
+								The BugDetector.java class will iterate through all the Bug classes, call the analyzeLogs() method, 
+								which will return a String output, and then concatenate all the Strings together into one Bug output. 
+							</p>
+							
+							<h4>Output</h4>
+							<p>The output will be a well-formatted String displayed in CLI that will first display the specified regex and any associated log lines followed by 
+								information about any common bugs that have been found.</p>
+							
+							<h3>Application</h3>
+							<h4>Technology Stack</h4>
+							<p>
+								For this application, I used Java for the backend and TypeScript for configuring AWS settings.
+							</p>
+							<h4>Demo</h4>
+							<p>
+								Unfortunately, the demo contains confidential information. 
+							</p>
+							<footer>
+								<ul class="stats">
+									<li>Internal Developer Tool</li>
+								</ul>
+							</footer>
+						</article>
+
+					</div>
+
+				<!-- Footer -->
+					<section id="footer">
+						<ul class="icons">
+							<li><a href="#" class="icon brands fa-twitter"><span class="label">Twitter</span></a></li>
+							<li><a href="#" class="icon brands fa-facebook-f"><span class="label">Facebook</span></a></li>
+							<li><a href="#" class="icon brands fa-instagram"><span class="label">Instagram</span></a></li>
+							<li><a href="#" class="icon solid fa-rss"><span class="label">RSS</span></a></li>
+							<li><a href="#" class="icon solid fa-envelope"><span class="label">Email</span></a></li>
+						</ul>
+						<p class="copyright">&copy; Untitled. Design: <a href="http://html5up.net">HTML5 UP</a>. Images: <a href="http://unsplash.com">Unsplash</a>.</p>
+					</section>
+
+			</div>
+
+		<!-- Scripts -->
+			<script src="assets/js/jquery.min.js"></script>
+			<script src="assets/js/browser.min.js"></script>
+			<script src="assets/js/breakpoints.min.js"></script>
+			<script src="assets/js/util.js"></script>
+			<script src="assets/js/main.js"></script>
+
+	</body>
+</html>

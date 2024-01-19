@@ -1,0 +1,170 @@
+<!DOCTYPE HTML>
+<html>
+	<head>
+		<title>Secure File System</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+		<link rel="stylesheet" href="assets/css/page.css" />
+	</head>
+	<body class="single is-preload">
+
+		<!-- Wrapper -->
+		<div id="wrapper">
+
+			<!-- Header -->
+				<header id="header">
+					<h1><a href="about.html">East Side</a></h1>
+					<nav class="links">
+						<ul>
+							<li><a href="about.html">About Me</a></li>
+							<li><a href="projects.html">Projects</a></li>
+							<li><a href="Alan_Resume.pdf">Resume</a></li>
+						</ul>
+					</nav>
+					<nav class="main">
+						<ul>
+							<li class="menu">
+								<a class="fa-bars" href="#menu">Menu</a>
+							</li>
+						</ul>
+					</nav>
+				</header>
+
+			<!-- Menu -->
+				<section id="menu">
+
+					<!-- Links -->
+						<section>
+							<ul class="links">
+								<li>
+									<a href="about.html">
+										<h3>About Me</h3>
+									</a>
+								</li>
+								<li>
+									<a href="projects.html">
+										<h3>Projects</h3>
+									</a>
+								</li>
+								<li>
+									<a href="Alan_Resume.pdf">
+										<h3>Resume</h3>
+									</a>
+								</li>
+							</ul>
+						</section>
+
+				</section>
+
+				<!-- Main -->
+					<div id="main">
+
+						<!-- Post -->
+						<article class="post">
+							<header>
+								<div class="title">
+									<h2><a href="triagerbot.html">Secure File System</a></h2>
+									<p>Class Project</p>
+								</div>
+							</header>
+							<h3>Design Overview</h3>
+							<p>
+                                We will be designing and building a system that allows users to securely store and share files in the presence of attackers. 
+                                We will be implementing the following functions:
+                                <ul>
+                                    <li>InitUser: Given a new username and password, create a new user.</li>
+                                    <li>GetUser: Given a username and password, let the user log in if the password is correct.</li>
+                                    <li>User.StoreFile: For a logged-in user, given a filename and file contents, create a new file or overwrite an existing file.</li>
+                                    <li>User.LoadFile: For a logged-in user, given a filename, fetch the corresponding file contents.</li>
+                                    <li>User.AppendToFile: For a logged-in user, given a filename and additional file contents, append the additional file contents at the end of the existing file contents, while following some efficiency requirements.</li>
+                                    <li>User.CreateInvitation: For a logged-in user, given a filename and target user, generate an invitation UUID that the target user can use to gain access to the file.</li>
+                                    <li>User.AcceptInvitation: For a logged-in user, given an invitation UUID, obtain access to a file shared by a different user. Allow the recipient user to access the file using a (possibly different) filename of their own choosing.</li>
+                                    <li>User.RevokeAccess: For a logged-in user, given a filename and target user, revoke the target user’s access so that they are no longer able to access a shared file.</li>
+
+                                </ul>
+                            </p>
+							<h4>Keystore</h4>
+                            <p>
+                                Keystore is a remote database where you can store public keys.
+
+                                Keystore is organized as a set of name-value pairs, similar to a dictionary in Python or a HashMap in Java. (Note: Sometimes these are called key-value pairs, but we will call them name-value pairs to avoid confusion with cryptographic keys.)
+                                Once a name-value pair is written to Keystore, it cannot be modified or deleted. Everybody (including attackers) can read all values, but cannot modify any values, on Keystore.
+                            </p>
+                            <h4>Datastore</h4>
+                            <p>
+                                Datastore is an insecure remote database where you can store data. The Datastore Adversary is an attacker who can read and modify any data on Datastore (more details later). Therefore, you must protect the confidentiality and integrity of any sensitive data you store on Datastore.
+
+                                Datastore is organized as a set of name-value pairs, just like Keystore. 
+                            </p>
+                            
+                            <h4>Threat Model: Datastore Adversary</h4>
+                            <p>
+                                The Datastore Adversary is an attacker who can read and modify all name-value pairs, and add new name-value pairs, on Datastore. They can modify Datastore at any time (but not in the middle of another function executing).
+                                The Datastore Adversary has a global view of Datastore; in other words, they can list out all name-value pairs that currently exist on Datastore.
+                                The Datastore Adversary can take snapshots of Datastore at any time.
+                                The Datastore Adversary can see when a user calls a function.
+                                The Datastore Adversary can view and record the content and metadata of all requests to the Datastore API.
+                                The Datastore Adversary is not a user in the system, and will not collude with other users. 
+                            </p>
+                            <h4>Threat Model: Revoked User Adversary</h4>
+                            <p>
+                                Once a user has their access revoked, they become a malicious user, who we’ll call the Revoked User Adversary.
+                                The Revoked User Adversary’s goal is to re-obtain access to the file. The revoked user will not perform malicious actions on other files that they still have access to. Their only goal is to re-obtain access to the file that they lost access to.
+                                The Revoked User Adversary may also try to re-obtain access by calling DatastoreGet and DatastoreSet and maliciously affecting Datastore. However, unlike the Datastore Adversary, they do not have a global view of Datastore (i.e. they cannot list all UUIDs that have been in use).
+                            </p>
+                            <h4>Error Handling</h4> 
+                            <p>
+                                All 8 functions have err as one of their return values.
+                                <ul>
+                                    <li>If the function successfully executes without an error, you should return nil (the null value in Go) for the err return value.</li>
+                                    <li>If a function is unable to execute correctly, all you need to do is return an error that is not nil.</li>
+                                </ul>
+                                The function could fail due to functionality issues (e.g. a user supplies an invalid argument), or security issues (e.g. an attacker has tampered with data that prevents your function from executing correctly). 
+                                You only need to detect when errors occur in this project; you do not need to recover from errors.
+                            </p>
+                            <h4>Library Functions</h4> 
+                            <p>
+                                We can only use the provided functions in the library to implement the logic. Such functions include calls to the Datastore API and Keystore API, (de)serialization, random number generators, encryption/decryption, and hashes/signatures. 
+                            </p>
+							
+							<h3>Low Level Design</h3>
+                            <p><a href="Secure File System Design Document.pdf">Design Document</a></p>
+                            <h3>Application</h3>
+                            <h4>Technology Stack</h4>
+                            <p>
+                                For this application, we used Golang for the backend. 
+                            </p>
+                            <h4>Application Code</a></h4>
+                            <p><a href=https://drive.google.com/drive/folders/1S9BidIEbZnxuk4XWa1Fu5_LRFsUjvS9f?usp=sharingCode>Code</a></p>
+							<footer>
+								<ul class="stats">
+									<li>Security Application</li>
+								</ul>
+							</footer>
+						</article>
+
+					</div>
+
+				<!-- Footer -->
+					<section id="footer">
+						<ul class="icons">
+							<li><a href="#" class="icon brands fa-twitter"><span class="label">Twitter</span></a></li>
+							<li><a href="#" class="icon brands fa-facebook-f"><span class="label">Facebook</span></a></li>
+							<li><a href="#" class="icon brands fa-instagram"><span class="label">Instagram</span></a></li>
+							<li><a href="#" class="icon solid fa-rss"><span class="label">RSS</span></a></li>
+							<li><a href="#" class="icon solid fa-envelope"><span class="label">Email</span></a></li>
+						</ul>
+						<p class="copyright">&copy; Untitled. Design: <a href="http://html5up.net">HTML5 UP</a>. Images: <a href="http://unsplash.com">Unsplash</a>.</p>
+					</section>
+
+			</div>
+
+		<!-- Scripts -->
+			<script src="assets/js/jquery.min.js"></script>
+			<script src="assets/js/browser.min.js"></script>
+			<script src="assets/js/breakpoints.min.js"></script>
+			<script src="assets/js/util.js"></script>
+			<script src="assets/js/main.js"></script>
+
+	</body>
+</html>
